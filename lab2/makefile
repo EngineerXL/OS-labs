@@ -1,4 +1,4 @@
-FLAGS = -std=c11
+FLAGS = -std=c11 -pedantic -Wall -Werror
 
 all: a.out child.out
 
