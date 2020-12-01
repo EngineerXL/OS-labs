@@ -41,7 +41,7 @@ int main() {
 
 	pthread_mutexattr_t mutex_attribute;
 	check_ok(pthread_mutexattr_init(&mutex_attribute), 0, "Error initializing mutex attribute!\n");
-    check_ok(pthread_mutexattr_setpshared(&mutex_attribute, PTHREAD_PROCESS_SHARED), 0, "Error sharing mutex attribute!\n");
+	check_ok(pthread_mutexattr_setpshared(&mutex_attribute, PTHREAD_PROCESS_SHARED), 0, "Error sharing mutex attribute!\n");
 
 	pthread_mutex_t* mutex = mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, fdMutex, 0);
 	check_wrong(mutex, MAP_FAILED, "Error mapping shared mutex!\n");
