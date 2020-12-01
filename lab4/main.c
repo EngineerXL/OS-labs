@@ -8,11 +8,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/*
- * main.c
- */
+#define check_ok(VALUE, OKVAL, MSG) if (VALUE != OKVAL) { printf("%s", MSG); return 1; }
+#define check_wrong(VALUE, WRONGVAL, MSG) if (VALUE == WRONGVAL) { printf("%s", MSG); return 1; }
 
-// Ubuntu has 255 symbol filename limit
+/* Ubuntu has 255 symbol filename limit */
 const unsigned long long FILENAME_LIMIT = 255;
 const unsigned long long SHARED_MEMORY_SIZE = 16;
 const char* CHILD_EXECUTABLE_NAME = "child.out";
@@ -22,10 +21,7 @@ const char* SHARED_COND_NAME = "shared_cond";
 
 int main() {
 	char* s = malloc(sizeof(char) * (FILENAME_LIMIT + 1));
-	if (s == NULL) {
-		printf("Error allocating memory!\n");
-		return 1;
-	}
+	check_wrong(s, NULL, "Error allocating memory!\n");
 	for (int i = 0; i < FILENAME_LIMIT + 1; i++) {
 		s[i] = 0;
 	}
@@ -34,91 +30,42 @@ int main() {
 		return 1;
 	}
 	FILE* input = fopen(s, "r");
-	if (input == NULL) {
-		printf("Error opening input file!\n");
-		return 1;
-	}
+	check_wrong(input, NULL, "Error opening input file!\n");
 	/* Shared file */
 	int fd = shm_open(SHARED_FILE_NAME, O_RDWR | O_CREAT, S_IRWXU);
-	if (fd == -1) {
-		printf("Error creating shared file!\n");
-		return 1;
-	}
-	if (ftruncate(fd, SHARED_MEMORY_SIZE) == -1) {
-		printf("Error truncating shared file!\n");
-		return 1;
-	}
+	check_wrong(fd, -1, "Error creating shared file!\n");
+	check_ok(ftruncate(fd, SHARED_MEMORY_SIZE), 0, "Error truncating shared file!\n");
 	/* Shared mutex */
 	int fdMutex = shm_open(SHARED_MUTEX_NAME, O_RDWR | O_CREAT, S_IRWXU);
-	if (ftruncate(fdMutex, sizeof(pthread_mutex_t))) {
-		printf("Error creating shared mutex file!\n");
-		return 1;
-	}
-	pthread_mutexattr_t mattr;
-	if (pthread_mutexattr_init(&mattr)) {
-		printf("Error initializing mutex attribute!\n");
-		return 3;
-	}
-    if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED)) {
-    	printf("Error sharing mutex attribute!\n");
-		return 1;
-    }
+	check_ok(ftruncate(fdMutex, sizeof(pthread_mutex_t)), 0, "Error creating shared mutex file!\n");
+
+	pthread_mutexattr_t mutex_attribute;
+	check_ok(pthread_mutexattr_init(&mutex_attribute), 0, "Error initializing mutex attribute!\n");
+    check_ok(pthread_mutexattr_setpshared(&mutex_attribute, PTHREAD_PROCESS_SHARED), 0, "Error sharing mutex attribute!\n");
+
 	pthread_mutex_t* mutex = mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, fdMutex, 0);
-	if (mutex == MAP_FAILED) {
-		printf("Error mapping shared mutex!\n");
-		return 1;
-	}
-	if (pthread_mutex_init(mutex, &mattr)) {
-		printf("Error initializing mutex!\n");
-		return 1;
-	}
-	if (pthread_mutexattr_destroy(&mattr)) {
-		printf("Error destoying mutex attribute!\n");
-		return 1;
-	}
+	check_wrong(mutex, MAP_FAILED, "Error mapping shared mutex!\n");
+	check_ok(pthread_mutex_init(mutex, &mutex_attribute), 0, "Error initializing mutex!\n");
+	check_ok(pthread_mutexattr_destroy(&mutex_attribute), 0, "Error destoying mutex attribute!\n");
 	/* Shared cond */
 	int fdCond = shm_open(SHARED_COND_NAME, O_RDWR | O_CREAT, S_IRWXU);
-	if (ftruncate(fdCond, sizeof(pthread_cond_t))) {
-		printf("Error creating shared cond file!\n");
-		return 1;
-	}
-	pthread_condattr_t cattr;
-	if (pthread_condattr_init(&cattr)) {
-		printf("Error initializing cond attribute!\n");
-		return 1;
-	}
-    if(pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED)) {
-    	printf("Error sharing cond attribute!\n");
-		return 1;
-    }
-	pthread_cond_t* condition = (pthread_cond_t*)mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, fdCond, 0);
-	if (mutex == MAP_FAILED) {
-		printf("Error mapping shared cond!\n");
-		return 1;
-	}
-	if (pthread_cond_init(condition, &cattr)) {
-		printf("Error initializing cond!\n");
-		return 1;	
-	}
-	if (pthread_condattr_destroy(&cattr)) {
-		printf("Error destoying cond attribute!\n");
-		return 1;
-	}
+	check_ok(ftruncate(fdCond, sizeof(pthread_cond_t)), 0, "Error creating shared cond file!\n");
 
+	pthread_condattr_t condition_attribute;
+	check_ok(pthread_condattr_init(&condition_attribute), 0, "Error initializing cond attribute!\n");
+	check_ok(pthread_condattr_setpshared(&condition_attribute, PTHREAD_PROCESS_SHARED), 0, "Error sharing cond attribute!\n");
+
+	pthread_cond_t* condition = (pthread_cond_t*)mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, fdCond, 0);
+	check_wrong(mutex, MAP_FAILED, "Error mapping shared cond!\n");
+	check_ok(pthread_cond_init(condition, &condition_attribute), 0, "Error initializing cond!\n");
+	check_ok(pthread_condattr_destroy(&condition_attribute), 0, "Error destoying cond attribute!\n");
+	/* Creating child process */
 	int id = fork();
-	if (id == -1) {
-		printf("Error creating process!");
-		return 1;
-	} else if (id == 0) {
-		if (dup2(fileno(input), fileno(stdin)) == -1) {
-			printf("Error changing stdin in child process!");
-			return 1;
-		}
+	check_wrong(id, -1, "Error creating process!\n");
+	if (id == 0) {
+		check_wrong(dup2(fileno(input), fileno(stdin)), -1, "Error changing stdin in child process!");
 		char** argv = malloc(sizeof(char*) * 5);
-		if (argv == NULL) {
-			printf("Erorr allocating memory!");
-			return 1;
-		}
+		check_wrong(argv, NULL, "Erorr allocating memory!");
 		argv[0] = malloc(sizeof(char) * 10);
 		memcpy(argv[0], CHILD_EXECUTABLE_NAME, 10);
 		argv[1] = malloc(sizeof(char) * 12);
@@ -128,84 +75,38 @@ int main() {
 		argv[3] = malloc(sizeof(char) * 12);
 		memcpy(argv[3], SHARED_COND_NAME, 12);
 		argv[4] = NULL;
-		if (execv(CHILD_EXECUTABLE_NAME, argv) == -1) {
-			printf("Error executing child process!\n");
-			return 1;
-		}
+		check_wrong(execv(CHILD_EXECUTABLE_NAME, argv), -1, "Error executing child process!\n");
 	} else {
 		char* sharedFile = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-		if (sharedFile == MAP_FAILED) {
-			printf("Error creating shared file!");
-			return 1;
-		}
+		check_wrong(sharedFile, MAP_FAILED, "Error creating shared file!");
 		while (1) {
-			if (pthread_mutex_lock(mutex)) {
-				printf("Error locking mutex in parent!\n");
-				return 1;
-			}
+			check_ok(pthread_mutex_lock(mutex), 0, "Error locking mutex in parent!\n");
 			while (sharedFile[0] == 0) {
-				if (pthread_cond_wait(condition, mutex)) {
-					printf("Error waiting cond in parent!\n");
-					return 1;
-				}
+				check_ok(pthread_cond_wait(condition, mutex), 0, "Error waiting cond in parent!\n");
 			}
 			if (sharedFile[0] == 'a') {
-				if (pthread_mutex_unlock(mutex)) {
-					printf("Error unlocking mutex in parent!\n");
-					return 1;
-				}
+				check_ok(pthread_mutex_unlock(mutex), 0, "Error unlocking mutex in parent!\n");
 				break;
 			}
 			printf("%s\n", sharedFile);
 			for (int j = 0; j < SHARED_MEMORY_SIZE; ++j) {
 				sharedFile[j] = 0;
 			}
-			if (pthread_cond_signal(condition)) {
-				printf("Error sending signal in parent!\n");
-				return 1;
-			}
-			if (pthread_mutex_unlock(mutex)) {
-				printf("Error unlocking mutex in parent!\n");
-				return 1;
-			}
+			check_ok(pthread_cond_signal(condition), 0, "Error sending signal in parent!\n");
+			check_ok(pthread_mutex_unlock(mutex), 0, "Error unlocking mutex in parent!\n");
 		}
-		if (munmap(sharedFile, SHARED_MEMORY_SIZE) == -1) {
-			printf("Error unmapping fd1!");
-			return 1;
-		}
+		check_wrong(munmap(sharedFile, SHARED_MEMORY_SIZE), -1, "Error unmapping fd1!");
 	}
-	if (pthread_mutex_destroy(mutex)) {
-		printf("Error destroying mutex!\n");
-		return 1;
-	}
-	if (munmap(mutex, sizeof(pthread_mutex_t))) {
-		printf("Error unmapping mutex!\n");
-		return 1;
-	}
-	if (pthread_cond_destroy(condition)) {
-		printf("Error destroying cond!\n");
-		return 1;
-	}
-	if (munmap(condition, sizeof(pthread_cond_t))) {
-		printf("Error unmapping cond!\n");
-		return 1;
-	}
-	if (shm_unlink(SHARED_FILE_NAME)) {
-		printf("Error unlinking shared file!\n");
-		return 1;
-	}
-	if (shm_unlink(SHARED_MUTEX_NAME)) {
-		printf("Error unlinking shared mutex file!\n");
-		return 1;
-	}
-	if (shm_unlink(SHARED_COND_NAME)) {
-		printf("Error unlinking shared cond file!\n");
-		return 1;
-	}
-	if (fclose(input)) {
-		printf("Error closing input file!\n");
-		return 1;
-	}
+	check_ok(pthread_mutex_destroy(mutex), 0, "Error destroying mutex!\n");
+	check_ok(munmap(mutex, sizeof(pthread_mutex_t)), 0, "Error unmapping mutex!\n");
+	check_ok(pthread_cond_destroy(condition), 0, "Error destroying cond!\n");
+	check_ok(munmap(condition, sizeof(pthread_cond_t)), 0, "Error unmapping cond!\n");
+
+	check_wrong(shm_unlink(SHARED_FILE_NAME), -1, "Error unlinking shared file!\n");
+	check_wrong(shm_unlink(SHARED_MUTEX_NAME), -1, "Error unlinking shared mutex file!\n");
+	check_wrong(shm_unlink(SHARED_COND_NAME), -1, "Error unlinking shared cond file!\n");
+	
+	check_ok(fclose(input), 0, "Error closing input file!\n");
 	free(s);
 	return 0;
 }

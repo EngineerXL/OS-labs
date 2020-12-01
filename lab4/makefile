@@ -1,4 +1,4 @@
-FLAGS = -O3 -pedantic -pthread -std=c11 -Wall -Werror
+FLAGS = -O2 -pedantic -pthread -std=c11 -Wall -Werror
 
 all: main.out child.out
 
@@ -9,4 +9,4 @@ child.out: child.c
 	gcc $(FLAGS) child.c -o child.out -lrt
 
 clean:
-	rm *.out
+	rm -rf *.out
