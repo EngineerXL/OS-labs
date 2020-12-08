@@ -1,5 +1,8 @@
 FLAGS = -g -O2 -pedantic -std=c11 -Wall -Werror
 
+# Перед выполнением статической программы нужно указать папку с библиотеками
+# export LD_LIBRARY_PATH=/home/Study/OS/lab5:$LD_LIBRARY_PATH
+
 static1: dynamic1 static_main
 	gcc $(FLAGS) static_main.o -L. -limpl1 -o solution
 
