@@ -4,8 +4,8 @@
 
 #define check(VALUE, OKVAL, MSG) if (VALUE != OKVAL) { printf("%s", MSG); return 1; }
 
-const char* DYN_LIB_1 = "./implementation1.so";
-const char* DYN_LIB_2 = "./implementation2.so";
+const char* DYN_LIB_1 = "./libimpl1.so";
+const char* DYN_LIB_2 = "./libimpl2.so";
 const char* GCD_FUNC_NAME = "GCD";
 const char* SORT_FUNC_NAME = "Sort";
 
