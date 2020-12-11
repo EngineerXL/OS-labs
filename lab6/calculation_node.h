@@ -1,6 +1,8 @@
 #ifndef CALCULATION_NODE
 #define CALCULATION_NODE
 
+#include "zmq_std.hpp"
+
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
@@ -12,13 +14,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <assert.h>
 #include <string.h>
 #include <errno.h>
 
 enum actions_t {
-	idle = 0,
-	destroy = 1,
+	success = 1,
+	destroy = 0,
 	ping = 2,
 	calculate = 3
 };
@@ -48,29 +49,29 @@ private:
 	/* System call return code */
 	int rc;
 
-	node_token_t recieve_msg() {
-		zmq_msg_t message;
-		zmq_msg_init(&message);
-		rc = zmq_msg_recv(&message, node_zmq_socket, 0);
-		assert(rc == sizeof(node_token_t));
-		node_token_t token = *(node_token_t*)zmq_msg_data(&message);
-		rc = zmq_msg_close(&message);
-		assert(rc == 0);
-		return token;
-	}
+	// node_token_t recieve_msg() {
+	// 	zmq_msg_t message;
+	// 	zmq_msg_init(&message);
+	// 	rc = zmq_msg_recv(&message, node_zmq_socket, 0);
+	// 	assert(rc == sizeof(node_token_t));
+	// 	node_token_t token = *(node_token_t*)zmq_msg_data(&message);
+	// 	rc = zmq_msg_close(&message);
+	// 	assert(rc == 0);
+	// 	return token;
+	// }
 
-	void send_msg(node_token_t* token) {
-		zmq_msg_t message;
-		zmq_msg_init(&message);
-		rc = zmq_msg_init_size(&message, sizeof(node_token_t));
-		assert(rc == 0);
-		rc = zmq_msg_init_data(&message, token, sizeof(node_token_t), NULL, NULL);
-		assert(rc == 0);
-		rc = zmq_msg_send(&message, node_zmq_socket, 0);
-		assert(rc == sizeof(node_token_t));
-		rc = zmq_msg_close(&message);
-		assert(rc == 0);
-	}
+	// void send_msg(node_token_t* token) {
+	// 	zmq_msg_t message;
+	// 	zmq_msg_init(&message);
+	// 	rc = zmq_msg_init_size(&message, sizeof(node_token_t));
+	// 	assert(rc == 0);
+	// 	rc = zmq_msg_init_data(&message, token, sizeof(node_token_t), NULL, NULL);
+	// 	assert(rc == 0);
+	// 	rc = zmq_msg_send(&message, node_zmq_socket, 0);
+	// 	assert(rc == sizeof(node_token_t));
+	// 	rc = zmq_msg_close(&message);
+	// 	assert(rc == 0);
+	// }
 
 	struct thread_token_t {
 		std::queue< std::pair<std::string, std::string> > token_queue;
@@ -87,20 +88,20 @@ private:
 		while (1) {
 			pthread_mutex_lock(&mutex);
 			while (calc_queue.empty()) {
-				std::cout << "----- > THREAD WAIT" << std::endl;
+				// std::cout << "----- > THREAD WAIT" << std::endl;
 				pthread_cond_wait(&cond, &mutex);
 			}
 			std::pair<std::string, std::string> cur = calc_queue.front();
 			calc_queue.pop();
 			pthread_mutex_unlock(&mutex);
-			std::cout << "----- > THREAD GOT " << cur.first << " - " << cur.second << std::endl;
+			// std::cout << "----- > THREAD GOT " << cur.first << " - " << cur.second << std::endl;
 			if (cur.first == "y" and cur.second == "y") {
 				break;
 			} else {
 				std::cout << "Thread will search " << cur.first << " in " << cur.second << std::endl;
 			}
 		}
-		std::cout << "----- > THREAD 2" << std::endl;
+		// std::cout << "----- > THREAD 2" << std::endl;
 		return NULL;
 	}
 
@@ -110,7 +111,7 @@ public:
 		// static pthread_cond_t cond;
 		// static std::queue< std::pair<std::string, std::string> > calc_queue;
 
-		std::cout << "Calling constructor [" << node_id << "]" << std::endl;
+		// std::cout << "Calling constructor [" << node_id << "]" << std::endl;
 		node_zmq_context = zmq_ctx_new();
 		assert(node_zmq_context != NULL);
 		node_zmq_socket = zmq_socket(node_zmq_context, ZMQ_REP);
@@ -153,29 +154,29 @@ public:
 	int execute() {
 		// std::cout << "OK: " << getpid() << std::endl;
 
-		std::cout << "Created! MyID = " << node_id << std::endl;
+		// std::cout << "Created! MyID = " << node_id << std::endl;
 		bool awake = true;
 		while (awake) {
-			std::cout << "Alive! " << getpid() << std::endl;
-			node_token_t token = recieve_msg();
-			{
-				std::cout << "Got message! " << getpid() << std::endl;
-				std::cout << "My ID = " << node_id << "; Msg ID = " << token.id << std::endl;
-			}
+			// std::cout << "Alive! " << getpid() << std::endl;
+			node_token_t token = zmq_std::recieve_msg<node_token_t>(node_zmq_socket);
+			// {
+			// 	std::cout << "Got message! " << getpid() << std::endl;
+			// 	std::cout << "My ID = " << node_id << "; Msg ID = " << token.id << std::endl;
+			// }
 			node_token_t* token_reply = new node_token_t;
 			token_reply->action = token.action;
 			token_reply->id = node_id;
 			if (token.action == destroy) {
 				// std::cout << "I'm here1" << std::endl;
 				if (token.id == node_id) {
-					token_reply->action = idle;
+					token_reply->action = success;
 					// std::cout << "I'm here2" << std::endl;
 					// zmq_msg_init_data(&message, &token, sizeof(node_token_t), NULL, NULL);
 					awake = false;
 				}
 			} else if (token.action == ping) {
 				if (token.id == node_id) {
-					token_reply->action = idle;
+					token_reply->action = success;
 				}
 			} else if (token.action == calculate and token.id == node_id) {
 				// int fd = token.fd;
@@ -210,12 +211,9 @@ public:
 				}
 				calc_queue.push({pattern, text});
 				pthread_mutex_unlock(&mutex);
-				token_reply->action = idle;
+				token_reply->action = success;
 			}
-			while (1) {
-				;
-			}
-			send_msg(token_reply);
+			zmq_std::send_msg(token_reply, node_zmq_socket);
 		}
 		rc = zmq_close(node_zmq_socket);
 		assert(rc == 0);
@@ -226,7 +224,7 @@ public:
 	}
 
 	~calculation_node_t() {
-		std::cout << "Calling destructor [" << node_id << "]" << std::endl;
+		// std::cout << "Calling destructor [" << node_id << "]" << std::endl;
 		pthread_mutex_lock(&mutex);
 		if (calc_queue.empty()) {
 			pthread_cond_signal(&cond);
@@ -254,7 +252,7 @@ public:
 		assert(rc == 0);
 		rc = zmq_ctx_term(node_text_zmq_context);
 		assert(rc == 0);
-		std::cout << "---------- ---------- ---------- ---------- > Destroyed [" << node_id << "]" << std::endl;
+		// std::cout << "---------- ---------- ---------- ---------- > Destroyed [" << node_id << "]" << std::endl;
 	}
 };
 
