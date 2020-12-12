@@ -1,12 +1,10 @@
-#include "calculation_node.h"
+#include <unistd.h>
+
 #include "topology.hpp"
 #include "zmq_std.hpp"
 
-#include <stdio.h>
-#include <unistd.h>
-
-#include <string.h>
-#include <errno.h>
+const char SENTINEL = '$';
+const char* NODE_EXECUTABLE_NAME = "calculation";
 
 int main() {
 	int rc;
@@ -25,12 +23,9 @@ int main() {
 
 	int cur_id = 1;
 
-	int n;
-	std::cin >> n;
-
 	std::string s;
 	long long id;
-	while (n-- and std::cin >> s >> id) {
+	while (std::cin >> s >> id) {
 		if (s == "create") {
 			long long parent;
 			std::cin >> parent;
@@ -47,9 +42,8 @@ int main() {
 				if (inserted) {
 					int fork_id = fork();
 					if (fork_id == 0) {
-						std::cout << "OK: " << getpid() << std::endl;
-						calculation_node_t new_node(id);
-						new_node.execute();
+						rc = execl(NODE_EXECUTABLE_NAME, NODE_EXECUTABLE_NAME, std::to_string(id).c_str(), NULL);
+						assert(rc != -1);
 						return 0;
 					}
 				} else {
@@ -117,7 +111,7 @@ int main() {
 					}
 				}
 				if (flag_available) {
-					std::string text_pattern = pattern + '$' + text + '$';
+					std::string text_pattern = pattern + SENTINEL + text + SENTINEL;
 					for (size_t i = 0; i < text_pattern.size(); ++i) {
 						char* c = new char(text_pattern[i]);
 						zmq_std::send_msg(c, text_socket);

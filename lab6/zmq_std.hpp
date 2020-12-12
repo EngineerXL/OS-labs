@@ -4,6 +4,18 @@
 #include <assert.h>
 #include <zmq.h>
 
+enum actions_t {
+	success = 1,
+	destroy = 0,
+	ping = 2,
+	calculate = 3
+};
+
+struct node_token_t {
+	actions_t action;
+	long long id;
+};
+
 namespace zmq_std {
 	template<class T>
 	T recieve_msg(void* socket) {

@@ -69,17 +69,17 @@ public:
 		return container_size;
 	}
 
-	// template<class U>
-	// friend std::ostream & operator << (std::ostream & of, const topology_t<U> & top) {
-	// 	for (list_iterator it1 = top.container.begin(); it1 != top.container.end(); ++it1) {
-	// 		of << "{";
-	// 		for (iterator it2 = it1->begin(); it2 != it1->end(); ++it2) {
-	// 			of << *it2 << " ";
-	// 		}
-	// 		of << "}" << std::endl;
-	// 	}
-	// 	return of;
-	// }
+	template<class U>
+	friend std::ostream & operator << (std::ostream & of, const topology_t<U> & top) {
+		for (list_iterator it1 = top.container.begin(); it1 != top.container.end(); ++it1) {
+			of << "{";
+			for (iterator it2 = it1->begin(); it2 != it1->end(); ++it2) {
+				of << *it2 << " ";
+			}
+			of << "}" << std::endl;
+		}
+		return of;
+	}
 };
 
 #endif /* TOPOLOGY_HPP */
