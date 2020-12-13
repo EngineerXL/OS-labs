@@ -28,10 +28,14 @@ void* thread_func(void*) {
 			} else {
 				std::vector<unsigned int> res = KMPStrong(cur.first, cur.second);
 				std::cout << "OK: " << node_id << " : ";
-				for (size_t i = 0; i < res.size() - 1; ++i) {
-					std::cout << res[i] << ", ";
-				}
-				std::cout << res.back() << std::endl;
+				if (res.empty()) {
+                    std::cout << "No matches" << std::endl;
+                } else {
+                    for (size_t i = 0; i < res.size() - 1; ++i) {
+                        std::cout << res[i] << ", ";
+                    }
+                    std::cout << res.back() << std::endl;
+                }
 			}
 		}
 		return NULL;
