@@ -34,15 +34,17 @@ public:
 		return false;
 	}
 
-	bool find(const T & elem) {
+	long long find(const T & elem) {
+		long long ind = 0;
 		for (list_iterator it1 = container.begin(); it1 != container.end(); ++it1) {
 			for (iterator it2 = it1->begin(); it2 != it1->end(); ++it2) {
 				if (*it2 == elem) {
-					return true;
+					return ind;
 				}
 			}
+			++ind;
 		}
-		return false;
+		return -1;
 	}
 
 	bool insert(const T & parent, const T & elem) {
@@ -71,9 +73,9 @@ public:
 
 	template<class U>
 	friend std::ostream & operator << (std::ostream & of, const topology_t<U> & top) {
-		for (list_iterator it1 = top.container.begin(); it1 != top.container.end(); ++it1) {
+		for (auto it1 = top.container.begin(); it1 != top.container.end(); ++it1) {
 			of << "{";
-			for (iterator it2 = it1->begin(); it2 != it1->end(); ++it2) {
+			for (auto it2 = it1->begin(); it2 != it1->end(); ++it2) {
 				of << *it2 << " ";
 			}
 			of << "}" << std::endl;

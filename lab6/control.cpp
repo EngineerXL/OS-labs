@@ -1,70 +1,92 @@
 #include <unistd.h>
+#include <vector>
 
 #include "topology.hpp"
 #include "zmq_std.hpp"
 
-const char SENTINEL = '$';
-const char* NODE_EXECUTABLE_NAME = "calculation";
+using node_id_type = long long;
+
+const long long TEXT_PORT = 100;
 
 int main() {
 	int rc;
-
-	void* context = zmq_ctx_new();
-	void* socket = zmq_socket(context, ZMQ_REQ);
-	rc = zmq_bind(socket, "tcp://*:4080");
-	assert(rc == 0);
-
-	void* text_context = zmq_ctx_new();
-	void* text_socket = zmq_socket(text_context, ZMQ_PUB);
-	rc = zmq_bind(text_socket, "tcp://*:1234");
-	assert(rc == 0);
-
-	topology_t<long long> control_node;
-
-	int cur_id = 1;
+	topology_t<node_id_type> control_node;
+	std::vector< std::pair<void*, void*> > childs;
 
 	std::string s;
-	long long id;
+	node_id_type id;
 	while (std::cin >> s >> id) {
 		if (s == "create") {
-			long long parent;
-			std::cin >> parent;
-			if (control_node.find(id)) {
-				std::cout << "Error: Already exists" << std::endl;
-			} else {
-				bool inserted = false;
-				if (parent == -1) {
-					control_node.insert(id);
-					inserted = true;
+			node_id_type parent_id;
+			std::cin >> parent_id;
+			if (parent_id == -1) {
+				void* new_context = NULL;
+				void* new_socket = NULL;
+				zmq_std::init_pair_socket(new_context, new_socket);
+				rc = zmq_bind(new_socket, ("tcp://*:" + std::to_string(PORT_BASE + id)).c_str());
+				assert(rc == 0);
+
+				int fork_id = fork();
+				if (fork_id == 0) {
+					rc = execl(NODE_EXECUTABLE_NAME, NODE_EXECUTABLE_NAME, std::to_string(id).c_str(), NULL);
+					assert(rc != -1);
+					return 0;
 				} else {
-					inserted = control_node.insert(parent, id);
-				}
-				if (inserted) {
-					int fork_id = fork();
-					if (fork_id == 0) {
-						rc = execl(NODE_EXECUTABLE_NAME, NODE_EXECUTABLE_NAME, std::to_string(id).c_str(), NULL);
-						assert(rc != -1);
-						return 0;
+					node_token_t* token = new node_token_t({ping, id, id});
+					node_token_t reply({fail, id, id});
+					if (zmq_std::send_recieve_wait(token, reply, new_socket) and reply.action == success) {
+						childs.push_back(std::make_pair(new_context, new_socket));
+						control_node.insert(id);
+					} else {
+						rc = zmq_close(new_socket);
+						assert(rc == 0);
+						rc = zmq_ctx_term(new_context);
+						assert(rc == 0);
 					}
+				}
+			} else if (control_node.find(parent_id) == -1) {
+				std::cout << "Error: Not found" << std::endl;
+			} else {
+				if (control_node.find(id) != -1) {
+					std::cout << "Error: Already exists" << std::endl;
 				} else {
-					std::cout << "Error: Parent not found" << std::endl;
+					int ind = control_node.find(parent_id);
+					node_token_t* token = new node_token_t({create, parent_id, id});
+					node_token_t reply({fail, id, id});
+					if (zmq_std::send_recieve_wait(token, reply, childs[ind].second) and reply.action == success) {
+						control_node.insert(parent_id, id);
+					} else {
+						std::cout << "Error: Parent is unavailable" << std::endl;
+					}
 				}
 			}
 		} else if (s == "remove") {
-			if (control_node.erase(id)) {
-				bool flag_removed = false;
-				for (size_t i = 0; i < control_node.size() + 1; ++i) {
-					node_token_t* token = new node_token_t({destroy, id});
-					if (!zmq_std::send_msg_dontwait(token, socket)) {
-						continue;
+			int ind = control_node.find(id);
+			if (ind != -1) {
+				node_token_t* token = new node_token_t({destroy, id, id});
+				node_token_t reply({fail, id, id});
+				bool ok = zmq_std::send_recieve_wait(token, reply, childs[ind].second);
+				if (reply.action == destroy and reply.parent_id == id) {
+					rc = zmq_close(childs[ind].second);
+					assert(rc == 0);
+					rc = zmq_ctx_term(childs[ind].first);
+					assert(rc == 0);
+					std::vector< std::pair<void*, void*> >::iterator it = childs.begin();
+					while (ind--) {
+						++it;
 					}
-					node_token_t token_reply = zmq_std::recieve_msg<node_token_t>(socket);
-					if (token_reply.action == success and token_reply.id == id) {
-						flag_removed = true;
-						break;
-					}
+					childs.erase(it);
+				} else if (reply.action == bind and reply.parent_id == id) {
+					rc = zmq_close(childs[ind].second);
+					assert(rc == 0);
+					rc = zmq_ctx_term(childs[ind].first);
+					assert(rc == 0);
+					zmq_std::init_pair_socket(childs[ind].first, childs[ind].second);
+					rc = zmq_bind(childs[ind].second, ("tcp://*:" + std::to_string(PORT_BASE + reply.id)).c_str());
+					assert(rc == 0);
 				}
-				if (flag_removed) {
+				if (ok) {
+					control_node.erase(id);
 					std::cout << "OK" << std::endl;
 				} else {
 					std::cout << "Error: Node is unavailable" << std::endl;
@@ -72,21 +94,12 @@ int main() {
 			} else {
 				std::cout << "Error: Not found" << std::endl;
 			}
-		}  else if (s == "ping") {
-			if (control_node.find(id)) {
-				bool flag_available = false;
-				for (size_t i = 0; i < control_node.size(); ++i) {
-					node_token_t* token = new node_token_t({ping, id});
-					if (!zmq_std::send_msg_dontwait(token, socket)) {
-						continue;
-					}
-					node_token_t token_reply = zmq_std::recieve_msg<node_token_t>(socket);
-					if (token_reply.action == success and token_reply.id == id) {
-						flag_available = true;
-						break;
-					}
-				}
-				if (flag_available) {
+		} else if (s == "ping") {
+			int ind = control_node.find(id);
+			if (ind != -1) {
+				node_token_t* token = new node_token_t({ping, id, id});
+				node_token_t reply({fail, id, id});
+				if (zmq_std::send_recieve_wait(token, reply, childs[ind].second) and reply.action == success) {
 					std::cout << "OK: 1" << std::endl;
 				} else {
 					std::cout << "OK: 0" << std::endl;
@@ -97,36 +110,20 @@ int main() {
 		} else if (s == "exec") {
 			std::string pattern, text;
 			std::cin >> pattern >> text;
-			if (control_node.find(id)) {
-				bool flag_available = false;
-				for (size_t i = 0; i < control_node.size(); ++i) {
-					node_token_t* token = new node_token_t({ping, id});
-					if (!zmq_std::send_msg_dontwait(token, socket)) {
-						continue;
-					}
-					node_token_t token_reply = zmq_std::recieve_msg<node_token_t>(socket);
-					if (token_reply.action == success and token_reply.id == id) {
-						flag_available = true;
+			int ind = control_node.find(id);
+			if (ind != -1) {
+				bool ok = true;
+				std::string text_pattern = pattern + SENTINEL + text + SENTINEL;
+				for (size_t i = 0; i < text_pattern.size(); ++i) {
+					node_token_t* token = new node_token_t({exec, text_pattern[i], id});
+					node_token_t reply({fail, id, id});
+					if (!zmq_std::send_recieve_wait(token, reply, childs[ind].second) or reply.action != success) {
+						ok = false;
 						break;
 					}
 				}
-				if (flag_available) {
-					std::string text_pattern = pattern + SENTINEL + text + SENTINEL;
-					for (size_t i = 0; i < text_pattern.size(); ++i) {
-						char* c = new char(text_pattern[i]);
-						zmq_std::send_msg(c, text_socket);
-					}
-					for (size_t i = 0; i < control_node.size(); ++i) {
-						node_token_t* token = new node_token_t({calculate, id});
-						if (!zmq_std::send_msg_dontwait(token, socket)) {
-							continue;
-						}
-						node_token_t token_reply = zmq_std::recieve_msg<node_token_t>(socket);
-						if (token_reply.action == success and token_reply.id == id) {
-							flag_available = true;
-							break;
-						}
-					}
+				if (ok) {
+					std::cout << "OK" << std::endl;
 				} else {
 					std::cout << "Error: Node is unavailable" << std::endl;
 				}
@@ -134,18 +131,12 @@ int main() {
 				std::cout << "Error: Not found" << std::endl;
 			}
 		}
-		sleep(1);
 	}
 
-	if (cur_id > 0) {
-		rc = zmq_close(text_socket);
+	for (size_t i = 0; i < childs.size(); ++i) {
+		rc = zmq_close(childs[i].second);
 		assert(rc == 0);
-		rc = zmq_ctx_term(text_context);
-		assert(rc == 0);
-
-		rc = zmq_close(socket);
-		assert(rc == 0);
-		rc = zmq_ctx_term(context);
+		rc = zmq_ctx_term(childs[i].first);
 		assert(rc == 0);
 	}
 }
