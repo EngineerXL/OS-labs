@@ -1,4 +1,4 @@
-#include <iostream>
+#include <list>
 #include <pthread.h>
 #include <queue>
 #include <tuple>
@@ -13,6 +13,7 @@ long long node_id;
 pthread_mutex_t mutex;
 pthread_cond_t cond;
 std::queue< std::pair<std::string, std::string> > calc_queue;
+std::queue< std::list<unsigned int> > done_queue;
 
 void* thread_func(void*) {
 		while (1) {
@@ -27,15 +28,13 @@ void* thread_func(void*) {
 				break;
 			} else {
 				std::vector<unsigned int> res = KMPStrong(cur.first, cur.second);
-				std::cout << "OK: " << node_id << " : ";
-				if (res.empty()) {
-                    std::cout << "No matches" << std::endl;
-                } else {
-                    for (size_t i = 0; i < res.size() - 1; ++i) {
-                        std::cout << res[i] << ", ";
-                    }
-                    std::cout << res.back() << std::endl;
-                }
+				std::list<unsigned int> res_list;
+				for (const unsigned int & elem : res) {
+					res_list.push_back(elem);
+				}
+				pthread_mutex_lock(&mutex);
+				done_queue.push(res_list);
+				pthread_mutex_unlock(&mutex);
 			}
 		}
 		return NULL;
@@ -69,14 +68,47 @@ int main(int argc, char** argv) {
 	node_token_t* info_token = new node_token_t({info, getpid(), getpid()});
 	zmq_std::send_msg_dontwait(info_token, node_parent_socket);
 
+	std::list<unsigned int> cur_calculated;
+
 	bool has_child = false;
 	bool awake = true;
 	while (awake) {
 		node_token_t token;
 		zmq_std::recieve_msg(token, node_parent_socket);
+
 		node_token_t* reply = new node_token_t({fail, node_id, node_id});
 
-		if (token.action == bind and token.parent_id == node_id) {
+		if (token.action == back) {
+			if (token.id == node_id) {
+				if (cur_calculated.empty()) {
+					pthread_mutex_lock(&mutex);
+					if (done_queue.empty()) {
+						reply->action = exec;
+					} else {
+						cur_calculated = done_queue.front();
+						done_queue.pop();
+						reply->action = success;
+						reply->id = getpid();
+					}
+					pthread_mutex_unlock(&mutex);
+				} else {
+					if (cur_calculated.size() > 1) {
+						reply->action = success;
+					} else {
+						reply->action = exec;
+					}
+					reply->id = cur_calculated.front();
+					cur_calculated.pop_front();
+				}
+			} else {
+				node_token_t* token_down = new node_token_t(token);
+				node_token_t reply_down(token);
+				reply_down.action = fail;
+				if (zmq_std::send_recieve_wait(token_down, reply_down, node_socket) and reply_down.action == success) {
+					*reply = reply_down;
+				}
+			}
+		} else if (token.action == bind and token.parent_id == node_id) {
 			/*
 			 * Bind could be recieved when parent created node
 			 * and this node should bind to parent's child

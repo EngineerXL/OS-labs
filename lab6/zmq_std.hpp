@@ -20,7 +20,8 @@ enum actions_t {
 	bind    = 4,
 	ping    = 5,
 	exec    = 6,
-	info    = 7
+	info    = 7,
+	back    = 8
 };
 
 struct node_token_t {

@@ -6,8 +6,6 @@
 
 using node_id_type = long long;
 
-const long long TEXT_PORT = 100;
-
 int main() {
 	int rc;
 	topology_t<node_id_type> control_node;
@@ -110,6 +108,38 @@ int main() {
 					std::cout << "OK: 1" << std::endl;
 				} else {
 					std::cout << "OK: 0" << std::endl;
+				}
+			} else {
+				std::cout << "Error: Not found" << std::endl;
+			}
+		} else if (s == "back") {
+			int ind = control_node.find(id);
+			if (ind != -1) {
+				node_token_t* token = new node_token_t({back, id, id});
+				node_token_t reply({fail, id, id});
+				if (zmq_std::send_recieve_wait(token, reply, childs[ind].second)) {
+					if (reply.action == success) {
+						node_token_t* token_back = new node_token_t({back, id, id});
+						node_token_t reply_back({fail, id, id});
+						std::vector<unsigned int> calculated;
+						while (zmq_std::send_recieve_wait(token_back, reply_back, childs[ind].second) and reply_back.action == success) {
+							calculated.push_back(reply_back.id);
+						}
+						calculated.push_back(reply_back.id);
+						if (calculated.empty()) {
+							std::cout << "OK: " << reply.id << " : -1" << std::endl;
+						} else {
+							std::cout << "OK: " << reply.id << " : ";
+							for (size_t i = 0; i < calculated.size() - 1; ++i) {
+								std::cout << calculated[i] << ", ";
+							}
+							std::cout << calculated.front() << std::endl;
+						}
+					} else {
+						std::cout << "Error: No calculations to back";
+					}
+				} else {
+					std::cout << "Error: Node is unavailable" << std::endl;
 				}
 			} else {
 				std::cout << "Error: Not found" << std::endl;
