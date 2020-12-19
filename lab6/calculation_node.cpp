@@ -66,7 +66,8 @@ int main(int argc, char** argv) {
 	std::string pattern, text;
 	bool flag_sentinel = true;
 
-	std::cout << "OK: " << getpid() << std::endl;
+	node_token_t* info_token = new node_token_t({info, getpid(), getpid()});
+	zmq_std::send_msg_dontwait(info_token, node_parent_socket);
 
 	bool has_child = false;
 	bool awake = true;
@@ -109,6 +110,12 @@ int main(int argc, char** argv) {
 					return 0;
 				} else {
 					bool ok = true;
+					node_token_t reply_info({fail, token.id, token.id});
+					ok = zmq_std::recieve_msg_wait(reply_info, node_socket);
+					if (reply_info.action != fail) {
+						reply->id = reply_info.id;
+						reply->parent_id = reply_info.parent_id;
+					}
 					if (has_child) {
 						node_token_t* token_bind = new node_token_t({bind, token.id, child_id});
 						node_token_t reply_bind({fail, token.id, token.id});

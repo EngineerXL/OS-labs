@@ -19,7 +19,8 @@ enum actions_t {
 	destroy = 3,
 	bind    = 4,
 	ping    = 5,
-	exec    = 6
+	exec    = 6,
+	info    = 7
 };
 
 struct node_token_t {

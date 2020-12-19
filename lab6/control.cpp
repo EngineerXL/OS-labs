@@ -32,11 +32,17 @@ int main() {
 					assert(rc != -1);
 					return 0;
 				} else {
+					bool ok = true;
+					node_token_t reply_info({fail, id, id});
+					ok = zmq_std::recieve_msg_wait(reply_info, new_socket);
+
 					node_token_t* token = new node_token_t({ping, id, id});
 					node_token_t reply({fail, id, id});
-					if (zmq_std::send_recieve_wait(token, reply, new_socket) and reply.action == success) {
+					ok = zmq_std::send_recieve_wait(token, reply, new_socket);
+					if (ok and reply.action == success) {
 						childs.push_back(std::make_pair(new_context, new_socket));
 						control_node.insert(id);
+						std::cout << "OK: " << reply_info.id << std::endl;
 					} else {
 						rc = zmq_close(new_socket);
 						assert(rc == 0);
@@ -54,6 +60,7 @@ int main() {
 					node_token_t* token = new node_token_t({create, parent_id, id});
 					node_token_t reply({fail, id, id});
 					if (zmq_std::send_recieve_wait(token, reply, childs[ind].second) and reply.action == success) {
+						std::cout << "OK: " << reply.id << std::endl;
 						control_node.insert(parent_id, id);
 					} else {
 						std::cout << "Error: Parent is unavailable" << std::endl;
