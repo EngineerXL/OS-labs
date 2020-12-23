@@ -72,6 +72,7 @@ int main(int argc, char** argv) {
 
 	bool has_child = false;
 	bool awake = true;
+	bool calc = true;
 	while (awake) {
 		node_token_t token;
 		zmq_std::recieve_msg(token, node_parent_socket);
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
 
 		if (token.action == back) {
 			if (token.id == node_id) {
-				if (cur_calculated.empty()) {
+				if (calc) {
 					pthread_mutex_lock(&mutex);
 					if (done_queue.empty()) {
 						reply->action = exec;
@@ -91,14 +92,16 @@ int main(int argc, char** argv) {
 						reply->id = getpid();
 					}
 					pthread_mutex_unlock(&mutex);
+					calc = false;
 				} else {
-					if (cur_calculated.size() > 1) {
+					if (cur_calculated.size() > 0) {
 						reply->action = success;
+						reply->id = cur_calculated.front();
+						cur_calculated.pop_front();
 					} else {
 						reply->action = exec;
+						calc = true;
 					}
-					reply->id = cur_calculated.front();
-					cur_calculated.pop_front();
 				}
 			} else {
 				node_token_t* token_down = new node_token_t(token);

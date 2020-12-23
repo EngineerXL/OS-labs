@@ -125,7 +125,6 @@ int main() {
 						while (zmq_std::send_recieve_wait(token_back, reply_back, childs[ind].second) and reply_back.action == success) {
 							calculated.push_back(reply_back.id);
 						}
-						calculated.push_back(reply_back.id);
 						if (calculated.empty()) {
 							std::cout << "OK: " << reply.id << " : -1" << std::endl;
 						} else {
@@ -133,10 +132,10 @@ int main() {
 							for (size_t i = 0; i < calculated.size() - 1; ++i) {
 								std::cout << calculated[i] << ", ";
 							}
-							std::cout << calculated.front() << std::endl;
+							std::cout << calculated.back() << std::endl;
 						}
 					} else {
-						std::cout << "Error: No calculations to back";
+						std::cout << "Error: No calculations to back" << std::endl;
 					}
 				} else {
 					std::cout << "Error: Node is unavailable" << std::endl;

@@ -1,0 +1,26 @@
+create 1 -1
+create 2 1
+create 5 -1
+create 3 2
+create 6 5
+create 7 5
+create 4 3
+create 8 5
+create 9 8
+create 0 1
+remove 8
+remove 4
+remove 2
+remove 6
+remove 0
+ping 1
+ping 3
+ping 5
+ping 7
+ping 9
+remove 5
+remove 7
+remove 1
+remove 9
+remove 3
+
