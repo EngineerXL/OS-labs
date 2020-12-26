@@ -1,105 +1,91 @@
-#include <cstdio>
+#include <iostream>
 #include <ncurses.h>
-#include <string>
+#include <stdio.h>
 #include <vector>
 
 #include "game.hpp"
 #include "zmq_std.hpp"
 
-const char* LOG_NAME = "log.txt";
-void* context = NULL;
-void* socket = NULL;
-FILE* log_file = NULL;
-
-// void game_connect(const std::string & IP) {
-// 	int rc;
-// 	context = zmq_ctx_new();
-// 	assert(context != NULL);
-// 	socket = zmq_socket(context, ZMQ_PAIR);
-// 	assert(socket != NULL);
-// 	rc = zmq_connect(socket, IP.c_str());
-// 	if (rc != 0) {
-// 		fprintf(log_file, "Error connecting to %s\n", IP.c_str());
-// 		return;
-// 	}
-
-// 	/* Recieve message */
-// 	int res;
-// 	zmq_std::recieve_msg(res, socket);
-
-// 	FILE* log_file = fopen(LOG_NAME, "w");
-// 	fprintf(log_file, "Got it %d\n", res);
-// 	fclose(log_file);
-
-// 	rc = zmq_close(socket);
-// 	assert(rc == 0);
-// 	rc = zmq_ctx_term(context);
-// 	assert(rc == 0);
-// }
-
-// void game_bind(const std::string & IP) {
-// 	int rc;
-// 	void* context = NULL;
-// 	context = zmq_ctx_new();
-// 	assert(context != NULL);
-// 	void* socket = NULL;
-// 	socket = zmq_socket(context, ZMQ_PAIR);
-// 	assert(socket != NULL);
-// 	rc = zmq_bind(socket, IP.c_str());
-// 	if (rc != 0) {
-// 		fprintf(log_file, "Error binding to %s\n", IP.c_str());
-// 		return;
-// 	}
-
-// 	/* Send message */
-// 	int* res = new int(123456789);
-// 	zmq_std::send_msg(res, socket);
-
-// 	rc = zmq_close(socket);
-// 	assert(rc == 0);
-// 	rc = zmq_ctx_term(context);
-// 	assert(rc == 0);
-// }
+std::string read_cords(unsigned int x, unsigned int y) {
+	std::string res;
+	bool ok = true;
+	int c;
+	echo();
+	WINDOW* window = newwin(4, 10, x, y);
+	while (ok) {
+		c = wgetch(window);
+		if (c == 27) {
+			ok = false;
+		} else if (c == 10) {
+			break;
+		} else {
+			res = res + (char)c;
+		}
+	}
+	noecho();
+	delwin(window);
+	if (ok) {
+		return res;
+	} else {
+		return std::string();
+	}
+}
 
 int main() {
+	const char* LOG_NAME = "log.txt";
+	FILE* log_file = NULL;
 	log_file = fopen(LOG_NAME, "w");
-
+	if (log_file == NULL) {
+		std::cout << "Error creating log file!" << std::endl;
+		return -1;
+	}
+	fprintf(log_file, "Starting log...\n");
 	initscr();
+	if (LINES < 20 or COLS < 80) {
+		std::cout << "Invalid terminal size!" << std::endl;
+		endwin();
+		fclose(log_file);
+		return -1;
+	}
+	/* Disable line buffering */
 	raw();
-	refresh();
-	int start_x = 0, start_y = 0, end_x = LINES, end_y = COLS;
-	int center_x = (end_x - start_x) / 2, center_y = (end_y - start_y) / 2;
-	WINDOW* menu = newwin(end_x - start_x, end_y - start_y, start_x, start_y);
-	box(menu, 0, 0);
-	wrefresh(menu);
+	const unsigned int start_x = 0;
+	const unsigned int start_y = 0;
+	const unsigned int end_x = LINES;
+	const unsigned int end_y = COLS;
+	const unsigned int center_x = (end_x - start_x) / 2;
+	const unsigned int center_y = (end_y - start_y) / 2;
 	std::vector< std::string > menu_items = {
 		"Create game",
 		"Connect to existing game",
 		"Exit"
 	};
-	const size_t new_game_ind = 0, connect_ind = 1, exit_ind = 2;
-	(void)connect_ind;
+	const size_t new_game_ind = 0;
+	const size_t connect_ind = 1;
+	const size_t exit_ind = 2;
 
+	WINDOW* menu = newwin(end_x - start_x, end_y - start_y, start_x, start_y);
+	/* Do not print wgetch() */
 	noecho();
+	/* Enables window input */
 	keypad(menu, TRUE);
+	/* Hide cursor */
 	curs_set(0);
 
-
-	int c;
 	size_t menu_item_ind = 0;
-	for (size_t i = 0; i < menu_items.size(); ++i) {
-		if (i == menu_item_ind) {
-			wattron(menu, A_STANDOUT);
-		} else {
+	int c;
+	while(1) {
+		box(menu, 0, 0);
+		for (size_t i = 0; i < menu_items.size(); ++i) {
+			if (i == menu_item_ind) {
+				/* Highlight current */
+				wattron(menu, A_STANDOUT);
+			}
+			mvwprintw(menu, center_x + i * 2, center_y - 12, menu_items[i].c_str());
 			wattroff(menu, A_STANDOUT);
 		}
-		mvwprintw(menu, center_x + i * 2, center_y, menu_items[i].c_str());
-	}
-	wrefresh(menu);
+		wrefresh(menu);
 
-	fprintf(log_file, "Start log...\n");
-
-	while(1) {
 		c = wgetch(menu);
 		fprintf(log_file, "Getting key... %d\n", c);
 		if (c == KEY_DOWN) {
@@ -117,79 +103,46 @@ int main() {
 				/*
 				 * Creating new game
 				 */
-				WINDOW* port_menu = newwin(10, 25, center_x, center_y);
+				WINDOW* port_menu = newwin(10, 30, center_x - 1, center_y - 15);
 				box(port_menu, 0, 0);
 				wrefresh(port_menu);
-				std::string port;
-				bool ok = true;
-				echo();
-				while (ok) {
-					c = wgetch(menu);
-					if (c == 27) {
-						ok = false;
-					} else if (c == 10) {
-						break;
-					} else {
-						port = port + (char)c;
-					}
-				}
-				noecho();
+				std::string port = read_cords(center_x - 1, center_y - 5);
 				delwin(port_menu);
-				if (ok) {
+				if (!port.empty()) {
 					fprintf(log_file, "Creating game on port %s\n", port.c_str());
-					game new_game(1, std::string("tcp://*:") + port);
-					// std::thread game_thread(game_bind, std::string("tcp://*:") + port);
-					new_game.play();
-					// game_thread.join();
+					try {
+						game new_game(true, std::string("tcp://*:") + port);
+						new_game.play();
+					} catch (std::exception & ex) {
+						fprintf(log_file, "%s\n", ex.what());
+					}
 				}
 			} else if (menu_item_ind == connect_ind) {
 				/*
 				 * Connecting to existing game
 				 */
-				WINDOW* ip_menu = newwin(10, 25, center_x, center_y);
+				WINDOW* ip_menu = newwin(10, 30, center_x - 1, center_y - 15);
 				box(ip_menu, 0, 0);
 				wrefresh(ip_menu);
-				std::string ip;
-				bool ok = true;
-				echo();
-				while (ok) {
-					c = wgetch(menu);
-					if (c == 27) {
-						ok = false;
-					} else if (c == 10) {
-						break;
-					} else {
-						ip = ip + (char)c;
+				std::string ip = read_cords(center_x - 2, center_y - 5);
+				delwin(ip_menu);
+				if (!ip.empty()) {
+					fprintf(log_file, "Connecting to %s\n", ip.c_str());
+					try {
+						game new_game(false, std::string("tcp://") + ip);
+						new_game.play();
+					} catch (std::exception & ex) {
+						fprintf(log_file, "%s\n", ex.what());
 					}
 				}
-				noecho();
-				delwin(ip_menu);
-				if (ok) {
-					fprintf(log_file, "Connecting to %s\n", ip.c_str());
-					game new_game(false, std::string("tcp://") + ip);
-					// fprintf(log_file, "%s\n", (std::string("tcp://") + ip).c_str());
-					// std::thread game_thread(game_connect, std::string("tcp://") + ip);
-					new_game.play();
-					// game_thread.join();
-				}
 			}
 		}
-		fprintf(log_file, "Going to redraw\n");
 		wclear(menu);
 		wrefresh(menu);
-		box(menu, 0, 0);
-		for (size_t i = 0; i < menu_items.size(); ++i) {
-			if (i == menu_item_ind) {
-				wattron(menu, A_STANDOUT);
-			} else {
-				wattroff(menu, A_STANDOUT);
-			}
-			mvwprintw(menu, center_x + i * 2, center_y, menu_items[i].c_str());
-		}
-		wattroff(menu, A_STANDOUT);
 		refresh();
 	}
 	delwin(menu);
 	endwin();
+	fprintf(log_file, "End of log...\n");
 	fclose(log_file);
 }
