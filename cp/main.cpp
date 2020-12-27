@@ -106,7 +106,7 @@ int main() {
 				WINDOW* port_menu = newwin(10, 30, center_x - 1, center_y - 15);
 				box(port_menu, 0, 0);
 				wrefresh(port_menu);
-				std::string port = read_cords(center_x - 1, center_y - 5);
+				std::string port = read_cords(center_x + 1, center_y - 5);
 				delwin(port_menu);
 				if (!port.empty()) {
 					fprintf(log_file, "Creating game on port %s\n", port.c_str());
@@ -124,7 +124,7 @@ int main() {
 				WINDOW* ip_menu = newwin(10, 30, center_x - 1, center_y - 15);
 				box(ip_menu, 0, 0);
 				wrefresh(ip_menu);
-				std::string ip = read_cords(center_x - 2, center_y - 5);
+				std::string ip = read_cords(center_x + 1, center_y - 5);
 				delwin(ip_menu);
 				if (!ip.empty()) {
 					fprintf(log_file, "Connecting to %s\n", ip.c_str());
